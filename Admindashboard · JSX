@@ -1,0 +1,18 @@
+import { useState } from "react";
+import ManageProducts from "./ManageProducts";
+import ManageOrders from "./ManageOrders";
+
+export default function AdminDashboard() {
+  const [tab, setTab] = useState("products");
+
+  return (
+    <div className="page">
+      <h2>Admin dashboard</h2>
+      <div className="tabs">
+        <button className={tab === "products" ? "active" : ""} onClick={() => setTab("products")}>Products</button>
+        <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>Orders</button>
+      </div>
+      {tab === "products" ? <ManageProducts /> : <ManageOrders />}
+    </div>
+  );
+}
