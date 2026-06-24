@@ -1,0 +1,73 @@
+const express = require("express");
+const Order = require("../models/Order");
+const Product = require("../models/Product");
+const { protect, allowRoles } = require("../middleware/auth");
+
+const router = express.Router();
+
+// POST /api/orders - customer places an order AFTER payment is verified
+// body: { items: [{productId, qty}], shippingAddress, phone, razorpayOrderId, razorpayPaymentId }
+router.post("/", protect, allowRoles("customer"), async (req, res) => {
+  try {
+    const { items, shippingAddress, phone, razorpayOrderId, razorpayPaymentId } = req.body;
+    if (!items || items.length === 0) return res.status(400).json({ message: "Cart is empty" });
+
+    let total = 0;
+    const orderItems = [];
+    for (const it of items) {
+      const product = await Product.findById(it.productId);
+      if (!product || !product.isActive) return res.status(400).json({ message: `Product unavailable: ${it.productId}` });
+      if (product.stock < it.qty) return res.status(400).json({ message: `Not enough stock for ${product.name}` });
+
+      orderItems.push({ product: product._id, name: product.name, price: product.price, qty: it.qty });
+      total += product.price * it.qty;
+
+      product.stock -= it.qty;
+      await product.save();
+    }
+
+    const order = await Order.create({
+      customer: req.user._id,
+      items: orderItems,
+      total,
+      shippingAddress,
+      phone,
+      razorpayOrderId,
+      razorpayPaymentId,
+      paymentStatus: razorpayPaymentId ? "Paid" : "Pending",
+    });
+
+    res.status(201).json(order);
+  } catch (err) {
+    res.status(500).json({ message: "Could not place order", error: err.message });
+  }
+});
+
+// GET /api/orders/my - logged-in customer's own orders
+router.get("/my", protect, allowRoles("customer"), async (req, res) => {
+  const orders = await Order.find({ customer: req.user._id }).sort({ createdAt: -1 });
+  res.json(orders);
+});
+
+// GET /api/orders - admin: list every order
+router.get("/", protect, allowRoles("admin"), async (req, res) => {
+  const orders = await Order.find().populate("customer", "name phone").populate("deliveryPerson", "name").sort({ createdAt: -1 });
+  res.json(orders);
+});
+
+// PATCH /api/orders/:id/status - admin: update status / assign delivery person
+// body: { status?, deliveryPerson? }
+router.patch("/:id/status", protect, allowRoles("admin"), async (req, res) => {
+  const { status, deliveryPerson } = req.body;
+  const update = {};
+  if (status) update.status = status;
+  if (deliveryPerson) update.deliveryPerson = deliveryPerson;
+
+  const order = await Order.findByIdAndUpdate(req.params.id, update, { new: true })
+    .populate("customer", "name phone")
+    .populate("deliveryPerson", "name");
+  if (!order) return res.status(404).json({ message: "Order not found" });
+  res.json(order);
+});
+
+module.exports = router;
