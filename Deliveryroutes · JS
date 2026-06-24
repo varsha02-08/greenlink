@@ -1,0 +1,33 @@
+const express = require("express");
+const Order = require("../models/Order");
+const { protect, allowRoles } = require("../middleware/auth");
+
+const router = express.Router();
+
+// GET /api/delivery/my-orders - orders assigned to the logged-in delivery person
+router.get("/my-orders", protect, allowRoles("delivery"), async (req, res) => {
+  const orders = await Order.find({
+    deliveryPerson: req.user._id,
+    status: { $in: ["Confirmed", "Out for Delivery"] },
+  })
+    .populate("customer", "name phone")
+    .sort({ createdAt: 1 });
+  res.json(orders);
+});
+
+// PATCH /api/delivery/:id/status - delivery person marks "Out for Delivery" or "Delivered"
+router.patch("/:id/status", protect, allowRoles("delivery"), async (req, res) => {
+  const { status } = req.body;
+  if (!["Out for Delivery", "Delivered"].includes(status)) {
+    return res.status(400).json({ message: "Invalid status for a delivery update" });
+  }
+
+  const order = await Order.findOne({ _id: req.params.id, deliveryPerson: req.user._id });
+  if (!order) return res.status(404).json({ message: "Order not found or not assigned to you" });
+
+  order.status = status;
+  await order.save();
+  res.json(order);
+});
+
+module.exports = router;
