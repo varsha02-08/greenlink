@@ -1,0 +1,43 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+export default function Register() {
+  const { register } = useAuth();
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "", address: "" });
+  const [error, setError] = useState("");
+
+  const update = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      await register(form);
+      navigate("/");
+    } catch (err) {
+      setError(err.response?.data?.message || "Registration failed");
+    }
+  };
+
+  return (
+    <div className="page narrow">
+      <h2>Create your account</h2>
+      <form onSubmit={submit} className="form">
+        <label>Full name</label>
+        <input value={form.name} onChange={update("name")} required />
+        <label>Email</label>
+        <input type="email" value={form.email} onChange={update("email")} required />
+        <label>Password</label>
+        <input type="password" value={form.password} onChange={update("password")} required minLength={6} />
+        <label>Phone</label>
+        <input value={form.phone} onChange={update("phone")} />
+        <label>Address</label>
+        <textarea rows={2} value={form.address} onChange={update("address")} />
+        {error && <p style={{ color: "crimson" }}>{error}</p>}
+        <button className="btn-primary" type="submit">Create account</button>
+      </form>
+    </div>
+  );
+}
