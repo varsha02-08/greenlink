@@ -1,0 +1,77 @@
+import { useEffect, useState } from "react";
+import api from "../../api/axios";
+
+const empty = { name: "", category: "Pantry", price: "", unit: "", stock: "", description: "" };
+
+export default function ManageProducts() {
+  const [products, setProducts] = useState([]);
+  const [form, setForm] = useState(empty);
+  const [editingId, setEditingId] = useState(null);
+  const [error, setError] = useState("");
+
+  const load = () => api.get("/products").then((res) => setProducts(res.data));
+  useEffect(() => { load(); }, []);
+
+  const update = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    const payload = { ...form, price: parseFloat(form.price), stock: parseInt(form.stock, 10) };
+    try {
+      if (editingId) {
+        await api.put(`/products/${editingId}`, payload);
+      } else {
+        await api.post("/products", payload);
+      }
+      setForm(empty);
+      setEditingId(null);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not save product");
+    }
+  };
+
+  const edit = (p) => {
+    setEditingId(p._id);
+    setForm({ name: p.name, category: p.category, price: String(p.price), unit: p.unit, stock: String(p.stock), description: p.description });
+  };
+
+  const remove = async (id) => {
+    if (!confirm("Delete this product?")) return;
+    await api.delete(`/products/${id}`);
+    load();
+  };
+
+  return (
+    <div className="admin-grid">
+      <form className="form" onSubmit={submit}>
+        <h3>{editingId ? "Edit product" : "Add a new product"}</h3>
+        <input placeholder="Name" value={form.name} onChange={update("name")} required />
+        <select value={form.category} onChange={update("category")}>
+          {["Pantry", "Bakes", "Home", "Crafts"].map((c) => <option key={c}>{c}</option>)}
+        </select>
+        <input type="number" placeholder="Price (₹)" value={form.price} onChange={update("price")} required />
+        <input type="number" placeholder="Stock quantity" value={form.stock} onChange={update("stock")} required />
+        <input placeholder="Unit (e.g. 200g jar)" value={form.unit} onChange={update("unit")} />
+        <textarea rows={2} placeholder="Description" value={form.description} onChange={update("description")} />
+        {error && <p style={{ color: "crimson" }}>{error}</p>}
+        <button className="btn-primary" type="submit">{editingId ? "Save changes" : "Add product"}</button>
+        {editingId && <button type="button" className="link-btn" onClick={() => { setEditingId(null); setForm(empty); }}>Cancel</button>}
+      </form>
+
+      <div className="list">
+        {products.map((p) => (
+          <div key={p._id} className="list-row">
+            <div className="flex-1">
+              <p className="bold">{p.name} <span className="muted small">· {p.category}</span></p>
+              <p className="muted small">₹{p.price.toFixed(2)} · stock {p.stock} · {p.unit}</p>
+            </div>
+            <button className="link-btn" onClick={() => edit(p)}>Edit</button>
+            <button className="link-btn danger" onClick={() => remove(p._id)}>Delete</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
