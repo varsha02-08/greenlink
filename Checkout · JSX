@@ -1,0 +1,97 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "../api/axios";
+import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+
+export default function Checkout() {
+  const { items, total, clearCart } = useCart();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const [address, setAddress] = useState(user?.address || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [placing, setPlacing] = useState(false);
+  const [error, setError] = useState("");
+
+  const handlePay = async () => {
+    setError("");
+    if (!address.trim() || !phone.trim()) { setError("Address and phone are required"); return; }
+    setPlacing(true);
+
+    try {
+      // 1. Ask our backend to create a Razorpay order for this amount
+      const { data: payOrder } = await api.post("/payment/create-order", { amount: total });
+
+      // 2. Open Razorpay's checkout popup
+      const options = {
+        key: payOrder.keyId,
+        amount: payOrder.amount,
+        currency: payOrder.currency,
+        order_id: payOrder.orderId,
+        name: "Pantry & Co.",
+        description: "Order payment",
+        handler: async (response) => {
+          try {
+            // 3. Verify the payment signature on our backend
+            const verify = await api.post("/payment/verify", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            if (!verify.data.verified) {
+              setError("Payment verification failed. You have not been charged for an invalid order.");
+              setPlacing(false);
+              return;
+            }
+
+            // 4. Create the order record in our database
+            const { data: order } = await api.post("/orders", {
+              items: items.map((i) => ({ productId: i.productId, qty: i.qty })),
+              shippingAddress: address,
+              phone,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+            });
+
+            clearCart();
+            navigate("/my-orders", { state: { justPlaced: order._id } });
+          } catch (err) {
+            setError(err.response?.data?.message || "Could not finalize the order");
+            setPlacing(false);
+          }
+        },
+        modal: { ondismiss: () => setPlacing(false) },
+        prefill: { name: user?.name, contact: phone },
+        theme: { color: "#92400e" },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not start payment");
+      setPlacing(false);
+    }
+  };
+
+  return (
+    <div className="page narrow">
+      <h2>Checkout</h2>
+      <label>Phone number</label>
+      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit phone number" />
+      <label>Delivery address</label>
+      <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} />
+
+      <div className="cart-total">
+        <span>Amount payable</span>
+        <strong>₹{total.toFixed(2)}</strong>
+      </div>
+
+      {error && <p style={{ color: "crimson" }}>{error}</p>}
+
+      <button className="btn-primary" onClick={handlePay} disabled={placing}>
+        {placing ? "Processing…" : `Pay ₹${total.toFixed(2)} with Razorpay`}
+      </button>
+    </div>
+  );
+}
