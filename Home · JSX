@@ -1,0 +1,28 @@
+import { useEffect, useState } from "react";
+import api from "../api/axios";
+import ProductCard from "../components/ProductCard";
+
+export default function Home() {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get("/products")
+      .then((res) => setProducts(res.data))
+      .catch(() => setError("Could not load products. Is the backend running?"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p style={{ padding: 24 }}>Loading products…</p>;
+  if (error) return <p style={{ padding: 24, color: "crimson" }}>{error}</p>;
+
+  return (
+    <div className="page">
+      <h1 className="page-title">Handmade, by the batch.</h1>
+      <div className="grid">
+        {products.map((p) => <ProductCard key={p._id} product={p} />)}
+      </div>
+    </div>
+  );
+}
