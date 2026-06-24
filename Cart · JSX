@@ -1,0 +1,35 @@
+import { Link } from "react-router-dom";
+import { useCart } from "../context/CartContext";
+
+export default function Cart() {
+  const { items, changeQty, removeItem, total } = useCart();
+
+  if (items.length === 0) {
+    return <div className="page"><p>Your cart is empty. <Link to="/">Go shopping</Link></p></div>;
+  }
+
+  return (
+    <div className="page narrow">
+      <h2>Your cart</h2>
+      {items.map((i) => (
+        <div key={i.productId} className="cart-row">
+          <div className="flex-1">
+            <p className="bold">{i.name}</p>
+            <p className="muted">{i.unit} · ₹{i.price.toFixed(2)} each</p>
+          </div>
+          <div className="qty-controls">
+            <button onClick={() => changeQty(i.productId, -1)}>-</button>
+            <span>{i.qty}</span>
+            <button onClick={() => changeQty(i.productId, 1)}>+</button>
+          </div>
+          <button className="link-btn danger" onClick={() => removeItem(i.productId)}>Remove</button>
+        </div>
+      ))}
+      <div className="cart-total">
+        <span>Total</span>
+        <strong>₹{total.toFixed(2)}</strong>
+      </div>
+      <Link to="/checkout" className="btn-primary">Checkout →</Link>
+    </div>
+  );
+}
