@@ -1,0 +1,55 @@
+// Run with: npm run seed
+// Creates sample products plus one admin and one delivery account for first login.
+require("dotenv").config();
+const bcrypt = require("bcryptjs");
+const connectDB = require("./config/db");
+const Product = require("./models/Product");
+const User = require("./models/User");
+
+const products = [
+  { name: "Mango Pickle", category: "Pantry", price: 220, unit: "400g jar", stock: 18, description: "Sun-ripened mangoes, cold-pressed mustard oil, a family spice mix." },
+  { name: "Almond Cardamom Cookies", category: "Bakes", price: 180, unit: "box of 12", stock: 24, description: "Hand-rolled shortbread, toasted almonds, a whisper of cardamom." },
+  { name: "Lavender Soy Candle", category: "Home", price: 350, unit: "200g tin", stock: 12, description: "Slow-burning soy wax, dried lavender buds, cotton wick." },
+  { name: "Chili Garlic Oil", category: "Pantry", price: 195, unit: "250ml bottle", stock: 30, description: "Roasted garlic and three chilies steeped in sesame oil." },
+  { name: "Hand-knit Coasters", category: "Crafts", price: 260, unit: "set of 4", stock: 9, description: "Chunky cotton yarn, machine-washable, four earthy colors." },
+  { name: "Oatmeal Honey Soap", category: "Home", price: 140, unit: "bar, 100g", stock: 40, description: "Cold-process soap with rolled oats and raw honey." },
+];
+
+async function run() {
+  await connectDB();
+
+  await Product.deleteMany({});
+  await Product.insertMany(products);
+  console.log(`Inserted ${products.length} products`);
+
+  const adminEmail = "admin@homemademarket.test";
+  const deliveryEmail = "delivery@homemademarket.test";
+
+  if (!(await User.findOne({ email: adminEmail }))) {
+    await User.create({
+      name: "Store Admin",
+      email: adminEmail,
+      password: await bcrypt.hash("Admin@123", 10),
+      role: "admin",
+    });
+    console.log(`Admin created: ${adminEmail} / Admin@123`);
+  }
+
+  if (!(await User.findOne({ email: deliveryEmail }))) {
+    await User.create({
+      name: "Raj Kumar",
+      email: deliveryEmail,
+      password: await bcrypt.hash("Delivery@123", 10),
+      role: "delivery",
+    });
+    console.log(`Delivery account created: ${deliveryEmail} / Delivery@123`);
+  }
+
+  console.log("Seeding complete.");
+  process.exit(0);
+}
+
+run().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
